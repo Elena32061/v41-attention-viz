@@ -8,8 +8,8 @@ const COLORS = {
   memcpy: '#7f8c8d', memset: '#95a5a6', other: '#777',
 };
 const BUCKET_CN = {
-  moe_grouped_gemm: 'MoE 专家 GEMM', dense_projection: '稠密投影', attention: 'attention', mhc: 'mHC',
-  quantize_norm: '量化 / norm', routing_dispatch: '路由 / dispatch', collective: '集合通信', eager_glue: '胶水小 kernel',
+  moe_grouped_gemm: 'MoE（含 EP 通信）', dense_projection: '稠密投影', attention: 'attention', mhc: 'mHC',
+  quantize_norm: '量化 / norm', routing_dispatch: '路由 / gate', collective: 'NCCL 集合通信（MoE 之外）', eager_glue: '胶水小 kernel',
   sampling: '采样', swiglu: 'SwiGLU', engram: 'Engram', topk_unresolved: 'top-k',
   memcpy: 'memcpy', memset: 'memset', other: '其他',
 };
@@ -189,10 +189,14 @@ function renderBuckets() {
     html.push(sec);
   }
   $('buckets').replaceChildren(...html);
-  $('bucketNote').innerHTML = crit
+  const commNote = `<br><b>为什么看不到 dispatch / combine：</b>两边 MoE 都走 MegaMoE（<code>deep_gemm::sm100_fp8_fp4_mega_moe_impl</code>，每层 1 个）。` +
+    `EP 的 dispatch、专家 GEMM、combine 融合在这一个 kernel 里，借 NVLink 直接读写对端显存完成，不调用 NCCL，所以 EP 通信时间都算在"MoE（含 EP 通信）"这一类里，目前没有拆开。` +
+    `"NCCL 集合通信"只统计 MoE 之外的 NCCL 调用（SGLang 每步 2 次 ReduceScatter、3 次 AllGather、1 次 AllReduce，每步而非每层），不是 MoE 的 dispatch / combine。` +
+    `"路由 / gate"是 gate 打分、top-k 和 dispatch 前的布局准备（如 SGLang 的 mega_moe_pre_dispatch），不搬运 token。`;
+  $('bucketNote').innerHTML = (crit
     ? `关键路径那一列逐行加起来，再加上空隙，正好等于这一步的墙钟长度 —— 可以直接读成"这一步的时间花在哪"。` +
       `累计列保留做参考：它是逐 kernel 相加，并发跑的部分重复计入了。`
-    : `这份数据只有累计时长。SGLang 多流并发，累计值高于墙钟，两个框架之间不要直接相减。`;
+    : `这份数据只有累计时长。SGLang 多流并发，累计值高于墙钟，两个框架之间不要直接相减。`) + commNote;
 }
 
 function renderTables() {
