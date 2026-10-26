@@ -38,13 +38,22 @@
   <h1>8 卡 B64 decode：一步里有哪些 kernel，每步是否一样</h1>
   <p class="sub">
     两份 nsys trace 各切成 100 个 decode step（output 199–299），逐 kernel 统计。
-    同一模型（V4.1-Flash）、同一权重、16K 输入 / 512 输出、全局 batch 64、2 节点 × 4×GB200。
-    这页是<b>实测记录</b>，不是形状算术；两份 trace 都带采集完整性警告，只看相对量级。
+    同一模型（V4.1-Flash）、同一权重、16K 输入 / 512 输出、全局 batch 64、2 节点 × 4×GB200，
+    Attention DP8 / MoE EP8、CP1、不开投机。
+    这页是<b>实测记录</b>，不是形状算术；profiler 开着采的，只作诊断，不是 TPOT。
     <a href="2d.html">← V4.1 形状页</a>　<a href="dots3.html">dots3 形状页</a>
   </p>
 </header>
 
 <section class="controls">
+  <div class="ctrl">
+    <label for="ds">数据集</label>
+    <select id="ds">
+      <option value="aligned" selected>对齐版（两侧都开调度重叠）</option>
+      <option value="legacy">旧版（SGLang 关了调度重叠）</option>
+    </select>
+    <div class="hint">对齐版是当前该引用的一份。</div>
+  </div>
   <div class="ctrl">
     <label for="fw">看哪一边</label>
     <select id="fw">
@@ -56,20 +65,17 @@
   </div>
   <div class="ctrl">
     <label for="sort">表格排序</label>
-    <select id="sort">
-      <option value="ms" selected>按每步累计时间</option>
-      <option value="count">按每步次数</option>
-      <option value="us">按单次平均时长</option>
-      <option value="bucket">按功能分组</option>
-    </select>
+    <select id="sort"></select>
     <div class="hint" id="sortHint"></div>
   </div>
   <div class="ctrl">
     <label>功能筛选</label>
     <div class="filters" id="filters"></div>
-    <div class="hint">分组沿用 analysis_functional.json 的逐名判定。</div>
+    <div class="hint">分组沿用 functional_buckets.py 的逐名判定。</div>
   </div>
 </section>
+
+<div class="why" id="dsNote" style="margin:0 0 14px"></div>
 
 <section class="panel">
   <h2>A　每步概况<span class="tag">rank 0（node_0）与 rank 4（node_1）各切 100 步</span></h2>
@@ -85,8 +91,9 @@
 </section>
 
 <section class="panel">
-  <h2>C　按功能汇总<span class="tag">每步累计 kernel 时长与次数</span></h2>
+  <h2>C　按功能汇总<span class="tag">每步关键路径时长、累计时长与次数</span></h2>
   <div id="buckets" class="two-col" style="max-width:none"></div>
+  <div class="why" id="bucketNote"></div>
 </section>
 
 <section class="panel">
@@ -100,8 +107,9 @@
     <div>
       <h3>数据来源</h3>
       <p id="prov"></p>
-      <p>切分脚本 <code>stage/di_step_ops.py</code> → <code>build_kernels_json.py</code>，
-        产物 <code>kernels_b64_8card.json</code>。kernel 名去掉了模板参数，所以同名不同 tile 的变体会合并。</p>
+      <p>对齐版复用 <code>sg_di_trace_compare_aligned_20261026/scripts/timeline_rank.py</code>
+        做边界映射、切步与关键路径链，产物 <code>kernels_b64_8card_aligned.json</code>。
+        kernel 名去掉了模板参数和参数表，所以同名不同 tile 的变体会合并；两个数据集用同一口径。</p>
     </div>
     <div>
       <h3>限定</h3>

@@ -16,12 +16,26 @@
   URL 多一个 `layer=full|swa`，`sel` 可取 `QKV_A / Q_B / IDX_Q / W_KC / W_VC / O`。
   校验：`node check_dots3.mjs`。
 
-- **`kernels.html` —— 8 卡 B64 实测 kernel 清单。** 不是形状算术，是两份 nsys trace
-  （SGLang `e2_sg8_b64_extension_01`、DeepInfer `e2_di8_b64_v3_20261022t113200z`，同模型同权重、
-  16K/512、全局 batch 64）各切成 100 个 decode step 后的逐 kernel 统计：每步概况、一步的执行顺序条、
-  按功能汇总、逐 kernel 表。数据在 `kernels_b64_8card.json`，由
-  `outputs/sg_di_8card_kernel_compare_20261025/stage/build_kernels_json.py` 生成。
-  URL：`?fw=both|SGLang|DeepInfer&sort=ms|count|us|bucket&hide=<bucket,...>`。
+- **`kernels.html` —— 8 卡 B64 实测 kernel 清单。** 不是形状算术，是 nsys trace 切成 100 个
+  decode step 后的逐 kernel 统计：每步概况、一步的执行顺序条、按功能汇总、逐 kernel 表。
+  两个数据集，页面顶部可切：
+
+  | 数据集 | SGLang | DeepInfer | 调度重叠 | 关键路径 |
+  |---|---|---|---|---|
+  | `aligned`（默认） | `n1_sg_b64_ovl_nsys_a1`（10-25） | `t1_di_b64_nsys_a1`（10-26） | 两侧都开 | 有 |
+  | `legacy` | `e2_sg8_b64_extension_01`（10-23） | `e2_di8_b64_v3_...`（10-22） | SGLang 关 | 无 |
+
+  对齐版两份 trace 在同一 Trial 2266850 的同两个节点上，配置对齐（Attention DP8 / MoE EP8、CP1、
+  16K/512、全局 batch 64、不开投机），数据在 `kernels_b64_8card_aligned.json`，由
+  `outputs/sg_di_kernel_compare_aligned_20261026/stage/build_kernels_json.py` 生成。
+  旧版两份不同天、配置未对齐，在 mentor 的 qs8 上采的，只保留做对照。
+
+  对齐版的主时间列是**关键路径 ms/步**（该 kernel 占住这一步墙钟的时长，逐行加上空隙正好等于步长）。
+  累计 ms 作为次列保留：SGLang 并发重叠多，它的累计 13.62 ms 比步长 8.30 ms 还高，
+  跨框架不能比累计。旧版只有累计列。
+
+  URL：`?ds=aligned|legacy&fw=both|SGLang|DeepInfer&sort=crit|ms|count|us|bucket&hide=<bucket,...>`。
+  校验：`node check_kernels.mjs`。
 
 四页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
 
