@@ -1,0 +1,95 @@
+:root {
+  --act: #dceaf5; --act-edge: #0f6ab4;
+  --w: #f3dfc6;   --w-edge: #c8812a;
+  --attn: #e3f0e8; --attn-edge: #2a9d8f;
+  --warn: #d1495b; --idle: #e4e6e8; --busy: #0f6ab4;
+  --dark: #26292d; --grey: #6f767d; --line: #dfe3e7; --bg: #fbfcfd;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 22px clamp(14px, 3vw, 46px) 60px; background: var(--bg); color: var(--dark);
+  font: 14px/1.65 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 21px; margin: 0 0 6px; font-weight: 600; letter-spacing: .2px; }
+h2 {
+  font-size: 15px; margin: 0 0 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 10px;
+}
+h3 { font-size: 13px; margin: 14px 0 4px; font-weight: 600; }
+.tag {
+  font-size: 11px; font-weight: 400; color: var(--grey);
+  border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; background: #fff;
+}
+header { max-width: 1480px; margin: 0 auto 18px; }
+.sub { color: var(--grey); margin: 0; font-size: 13px; max-width: 900px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em;
+  background: #eef1f4; padding: 1px 5px; border-radius: 4px; }
+
+.controls {
+  max-width: 1480px; margin: 0 auto 18px; display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px;
+}
+.ctrl label { display: block; font-size: 12px; font-weight: 600; color: var(--grey); margin-bottom: 7px; }
+.ctrl input[type=range] { width: 100%; accent-color: var(--act-edge); margin: 0; }
+.ctrl select {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; font: inherit; font-size: 13px; color: var(--dark);
+}
+.ctrl output { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hint { font-size: 11.5px; color: var(--grey); margin-top: 5px; line-height: 1.5; }
+.presets div { display: flex; gap: 6px; flex-wrap: wrap; }
+.presets button {
+  font: inherit; font-size: 12px; padding: 4px 11px; border: 1px solid var(--line);
+  background: #fff; border-radius: 7px; cursor: pointer; color: var(--dark);
+}
+.presets button:hover { border-color: var(--act-edge); color: var(--act-edge); }
+
+.panel {
+  max-width: 1480px; margin: 0 auto 18px; background: #fff;
+  border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px;
+}
+.two-col {
+  max-width: 1480px; margin: 0 auto; display: grid; gap: 18px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+}
+.two-col .panel { max-width: none; margin-bottom: 18px; }
+@media (max-width: 1080px) { .two-col { grid-template-columns: 1fr; } }
+
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.box { cursor: pointer; }
+.box rect { transition: filter .12s, stroke-width .12s; }
+.box:hover rect { filter: brightness(.965); }
+.box.sel rect { stroke-width: 2.4; }
+.box text { pointer-events: none; }
+.lbl { font-size: 12.5px; fill: var(--dark); }
+.dim { font-size: 10.5px; fill: var(--grey); }
+.edge { stroke: #b3bcc4; stroke-width: 1.3; fill: none; marker-end: url(#ar); }
+
+.step-title { font-size: 13px; font-weight: 600; margin: 2px 0 10px; }
+.step-title .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 400; color: var(--act-edge); font-size: 12.5px;
+}
+.why { font-size: 12px; color: var(--grey); margin: 10px 0 0; line-height: 1.6; }
+.why b { color: var(--dark); font-weight: 600; }
+
+table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 12.5px; }
+th, td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); }
+th { color: var(--grey); font-weight: 600; font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; }
+td { font-variant-numeric: tabular-nums; }
+tr.total td { font-weight: 600; color: var(--warn); border-bottom: none; }
+tr.sel td { background: #f2f8fd; }
+td.hl { color: var(--warn); font-weight: 600; }
+
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+footer {
+  max-width: 1480px; margin: 26px auto 0; padding-top: 18px; border-top: 1px solid var(--line);
+  font-size: 12.5px; color: var(--grey);
+}
+footer .cols { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+footer p, footer li { line-height: 1.65; }
+footer ul { padding-left: 17px; margin: 4px 0; }
+footer h3 { color: var(--dark); }
