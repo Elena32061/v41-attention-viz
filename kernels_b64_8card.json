@@ -10335,6 +10335,7 @@
   }
  },
  "limits": [
+  "这两份 trace 的步长（SGLang 11.10 ms、DeepInfer 9.71 ms）不是当前应引用的 TPOT。对齐配置后的正常计时（profiler 关、两侧均开调度重叠、DeepInfer 新配置、自有 Trial 2266850，2026-10-25/26）是 SGLang 8.024 ms、DeepInfer 8.759 ms，见 outputs/gb200_8card_aligned_20261026/。本页只用于看一步里有哪些 kernel。",
   "两份 trace 都带 CUDA/NVTX 采集完整性警告，独立评审未接受其模块占比；这里的 ms 是存在记录的累计 kernel 时长，只看相对量级。",
   "时间是 cumulative（逐 kernel 相加），SGLang 的 kernel 大量并发重叠，DeepInfer 几乎不重叠，所以两边的累计 ms 不能当成墙钟时间比。",
   "两份 trace 不是同一天采的：DeepInfer 2026-10-22，SGLang 2026-10-23，SGLang 跑时 disable_overlap_schedule=True。",
