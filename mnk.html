@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta name="description" content="用交互动画理解 DeepSeek V4.1 Flash 的 M、N、K：线性层、MoE、Attention 与计算强度。">
+ <title>M、N、K 到底是什么？ · V4.1-Flash 教学动画</title>
+ <link rel="stylesheet" href="mnk.css">
+</head>
+<body>
+ <nav class="topnav" aria-label="网站导航"><a href="index.html" class="brand">V4.1 FLASH <span>/ 可视化课堂</span></a><div><a href="index.html">3D Attention</a><a href="2d.html">精确数表</a><a href="mnk.html" aria-current="page">M · N · K</a></div></nav>
+ <main>
+  <header class="hero"><p class="eyebrow">一条公式，三种维度</p><h1><span class="m">M</span>、<span class="n">N</span>、<span class="k">K</span>，到底在变什么？</h1><p>把一次矩阵乘拆开看，再放回 DeepSeek V4.1 Flash。<br>线性层增加的是 token 行数；Attention 的上下文可以落在另一条轴上。</p><a class="jump" href="#multiply">先看 30 秒乘法动画 ↓</a></header>
+  <div class="workspace">
+   <aside class="controls" aria-label="模型形状控制">
+    <div class="section-label">01 / 选择一个算子</div>
+    <label for="op">当前计算</label><select id="op"><option value="linear">普通线性层 · Q_A</option><option value="up">MoE · 融合 gate + up</option><option value="down">MoE · down</option><option value="qk">Attention · QK 打分</option><option value="pv">Attention · PV 加权</option><option value="index">Indexer · 全扫描</option></select>
+    <div class="control-title"><label for="batch">每卡请求数 b</label><output id="batchOut" for="batch">32</output></div><input id="batch" type="range" min="1" max="512" value="32"><div class="range-ends"><span>1</span><span>512 请求 / 卡</span></div>
+    <button id="sweep" class="secondary" type="button">▶ 自动增加 batch</button>
+    <label for="query">每请求当前处理行数 q</label><select id="query"><option value="1">1 · 普通 decode</option><option value="6">6 · 默认 DSpark 验证窗口</option><option value="8">8 · 另一个验证窗口情景</option></select>
+    <p class="micro">DSpark block size 5 → gamma 5 → target 验证 6 行；q 不等于接受 token 数。</p>
+    <div class="control-title"><label for="context">历史上下文 L</label><output id="contextOut" for="context">16K</output></div><input id="context" type="range" min="8" max="19" value="14"><div class="range-ends"><span>256</span><span>512K token</span></div>
+    <div id="poolControl" hidden><label for="pool">参与 Attention 的 KV</label><select id="pool"><option value="sparse">稀疏选中 · 至多 512</option><option value="swa">滑动窗口 · 至多 128</option><option value="dense">完整历史 · 用于比较</option></select></div>
+    <div id="ratioControl" hidden><label for="ratio">KV 压缩比例 r</label><select id="ratio"><option value="2">r = 2</option><option value="1">r = 1</option></select></div>
+    <div class="divider"></div><label for="dtype">字节口径 · 理想化情景</label><select id="dtype"><option value="bf16">A / B / C 全 BF16</option><option value="fp8">A / B / C 全 FP8</option><option value="w4a8">MoE：A FP8 / W FP4 / C BF16</option></select><p class="micro">用于比较元素与字节，非自动推断真实 kernel 精度。</p>
+    <button id="share" class="secondary" type="button">复制当前配置链接</button><span id="shareStatus" role="status"></span>
+   </aside>
+   <div class="content">
+    <section class="shape-panel panel" aria-labelledby="shapeTitle"><div class="section-label">02 / 放回模型</div><div class="panel-heading"><h2 id="shapeTitle">Q 低秩投影 · Q_A</h2><span class="tag">配置与形状算术</span></div><p id="scope" class="scope"></p>
+     <div class="dimensions"><article><span class="dim-letter m">M</span><div><strong id="mValue">32</strong><span id="mMeaning"></span><small id="mChange"></small></div></article><article><span class="dim-letter n">N</span><div><strong id="nValue">1,280</strong><span id="nMeaning"></span><small id="nChange"></small></div></article><article><span class="dim-letter k">K</span><div><strong id="kValue">5,120</strong><span id="kMeaning"></span><small id="kChange"></small></div></article></div>
+     <div id="shapeDrawing" class="shape-drawing" role="img" aria-label="当前矩阵形状"></div><p class="micro">矩阵示意按对数缩放，格子不对应单个元素；上方数字是准确维度。</p>
+     <p id="shapeNote" class="insight"></p><p id="attentionNote" class="micro" hidden>这里按单请求、单 head 的逻辑乘法记账。稀疏 S=min(512,L) 与窗口 S=min(128,L) 是教学情景；实际层还受压缩历史长度、有效 key 集合与 query 选择限制。MQA 可跨 head 复用 KV，FlashAttention 类实现不必物化完整 scores。下方字节数不能当实际 HBM 流量。</p>
+    </section>
+    <section class="panel multiply" id="multiply" aria-labelledby="multiplyTitle"><div class="section-label">03 / 看一格输出是怎么算出来的</div><div class="panel-heading"><h2 id="multiplyTitle">一行 × 一列，沿 K 累加</h2><span id="stepCount" class="tag">0 / 36 次乘加</span></div><p class="scope">用一个 <b>3 × 4</b> 乘 <b>4 × 3</b> 的小例子演示。它解释乘法过程，不代表上方模型的尺寸。</p><div id="toyDrawing" class="toy-drawing" role="img" aria-label="矩阵乘法分步演示"></div><div class="calculation" id="calculation" aria-live="off"></div><div class="playback"><button id="play" class="primary" type="button">播放乘法</button><button id="next" class="secondary" type="button">下一步</button><button id="restart" class="text-button" type="button">从头开始</button><label for="speed">节奏</label><select id="speed"><option value="800">慢</option><option value="400" selected>中</option><option value="150">快</option></select></div><p class="micro">动画节奏仅用于教学，不代表 GPU 调度或 kernel 耗时。M、N 决定输出有几格；K 决定每格累加多少次。</p></section>
+    <section class="panel intensity" aria-labelledby="intensityTitle"><div class="section-label">04 / 计算与访存比率</div><div class="panel-heading"><h2 id="intensityTitle">同一份权重，能服务多少行？</h2><span class="tag">理想算术强度</span></div><div class="formula"><span>AI =</span><span class="fraction"><span>2<span class="m">M</span><span class="n">N</span><span class="k">K</span></span><span>s<sub>A</sub>·<span class="m">M</span><span class="k">K</span> + s<sub>B</sub>·<span class="k">K</span><span class="n">N</span> + s<sub>C</sub>·<span class="m">M</span><span class="n">N</span></span></span><small>FLOP / byte</small></div><div class="metrics"><div><span>当前 AI</span><strong id="aiValue"></strong><small>FLOP / byte</small></div><div><span>乘加计算量</span><strong id="flopsValue"></strong><small id="flopsUnit"></small></div><div><span>理想读写量</span><strong id="bytesValue"></strong><small id="bytesUnit"></small></div></div><div id="traffic" class="traffic"></div><div id="trafficLegend" class="traffic-legend"></div><p id="dtypeNote" class="micro"></p><div id="chart" class="chart" role="img" aria-label="固定 N K 时算术强度随 M 的变化"></div><p id="chartNote" class="insight"></p><p class="micro">分子一次乘加计 2 FLOPs。分母假设 A、B 各读一次，C 写一次；忽略量化 scale、padding、中间结果和重复读取。融合、缓存与跨 head 复用会改变真实流量，图中没有实测性能或瓶颈判定。</p></section>
+   </div>
+  </div>
+  <section class="takeaways" aria-label="学习要点"><article><span>01</span><h3>固定 N、K 的条件</h3><p>固定模型、具体线性算子与 TP 切分。增加 batch 或验证行数，通常只增加 M。</p></article><article><span>02</span><h3>上下文是另一条轴</h3><p>QK 的序列维是 N；PV 的序列维是 K。稀疏选中数和窗口达到上限后，可以不再随 L 增长。</p></article><article><span>03</span><h3>元素数还不是字节数</h3><p>裸公式的分母是元素量。FP4、FP8、BF16 每个元素字节不同，需要分别乘上 s。</p></article></section>
+  <footer><p>模型常量：H=5120 · I=2304 · E=384 · top-k=6 · head dim=512（已含 RoPE 64）· index dim=128。线性与专家形状按 TP1；MoE 映射按 EP64 均匀路由。</p><p>本页为教学形状模型，不含 GPU 实测。<a href="README.md">来源与页面说明</a> · <a href="index.html">返回 Attention 3D</a></p></footer>
+ </main><script type="module" src="mnk.js"></script>
+</body></html>

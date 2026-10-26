@@ -1,6 +1,8 @@
 # V4.1-Flash Attention 结构可视化
 
-两个页面，同一套数据：
+本站包含形状教学页面和独立的实测 kernel 页面，各页注明数据口径。
+
+- **`mnk.html` —— M / N / K 与计算强度互动教学。** 用矩阵乘法动画解释输出行 M、输出列 N 与归约维 K；切换线性层、EP64 专家、QK/PV 和 indexer，观察 batch、验证长度和上下文分别改变哪些维度。计算强度使用明确的每元素字节数，展示理想单次读写的算术估计，不是 HBM 流量或性能测量。线性层按 TP1、MoE 按 EP64 均匀路由；attention 按单请求单 head 的逻辑矩阵乘，不把跨请求 KV 当作同一矩阵，也不假定 FlashAttention 物化 scores。默认 DSpark block=5 对应 target q=6；q=8 为单独的验证窗口情景。计算核对：`node check_mnk.mjs`。
 
 - **`index.html` —— WebGL 3D 动画版。** 一次 GEMM 画成一个体积：
   1 个格子 = 一个 128×128 的输出块，所以宽是 `N/128`、高是 `M/128`，
@@ -37,7 +39,7 @@
   URL：`?ds=aligned|legacy&fw=both|SGLang|DeepInfer&sort=crit|ms|count|us|bucket&hide=<bucket,...>`。
   校验：`node check_kernels.mjs`。
 
-四页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
+所有页面都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
 
 ## 本地打开
 
@@ -98,7 +100,7 @@ python3 -m http.server 8000
 - 轮数假设每个块代价相同，实际不是 —— 每块的活跟 K 成正比，
   `Q_B` 的 K 只有 1280，块多但每块很浅。所以**轮数不能直接当时间读**。
 - `O_A` 真实 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。
-- 只画 attention。MoE、mHC、shared expert、Engram 表都没有画。
+- 原 3D / 2D 形状页只画 attention。新增 M/N/K 教学页另含单专家 GEMM 示例；没有完整模型的 mHC、shared expert、Engram 或端到端时间模型。
 
 ## 文件
 
