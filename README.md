@@ -31,7 +31,7 @@ python3 -m http.server 8000
 ## 几个值得拖一下的地方
 
 - **M=896 → M=1408，看 QKV_A。** 方块从 98 涨到 154，刚好越过 152，末轮占用掉到 1%。
-  这就是 wave 取整的悬崖。
+  这就是轮数取整的悬崖（wave quantization）。
 - **把并行方式从 DP 切到 TP4。** 同样 M=896，四个投影合计从 18 轮掉到 7 轮 ——
   但那是每张卡的轮数，四张卡要各跑一遍，而且 O_B 之后还要 all-reduce。
 - **上下文从 16K 拉到 1024K，看 E 栏。** 候选集在 16,384 封顶，
@@ -50,15 +50,15 @@ python3 -m http.server 8000
 | `O_B` 的 `K = 8192 = 8×1024` | `o_groups × o_lora_rank`，row-parallel（切 K 不切 N） |
 | 稀疏两级 | `sparse_stage=2`；第一级 `candidate_topk_blocks=2048 × candidate_block_size=8`；第二级 MQA indexer 选 `index_topk=512` 个 **token**（源码 `self.topk_tokens = cfg.index_topk`，单位是 token 不是 block） |
 
-瓦片与 wave 是形状算术：`块数 = ⌈N/128⌉ × ⌈M/128⌉`，`轮数 = ⌈块数 / 152⌉`。
+块数与轮数是形状算术：`块数 = ⌈N/128⌉ × ⌈M/128⌉`，`轮数 = ⌈块数 / 152⌉`。
 
 ## 这里没有的东西
 
 - **没有任何实测时间、吞吐或 TPOT。** 整个页面只有 config 维度和形状算术。
-- 瓦片和 wave 是理想排布，不含 L2、尾效应、graph padding。
-- wave 数假设每个方块代价相同，实际不是 —— 每块的活跟 K 成正比，
+- 块数和轮数是理想排布，不含 L2、尾效应、graph padding。
+- 轮数假设每个块代价相同，实际不是 —— 每块的活跟 K 成正比，
   `Q_B` 的 K 只有 1280，块多但每块很浅。所以**轮数不能直接当时间读**。
-- `O_A` 真实 kernel 的瓦片不是 128×128，这里按统一口径算，只用于比较量级。
+- `O_A` 真实 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。
 - 只画 attention。MoE、mHC、shared expert、Engram 表都没有画。
 
 ## 文件
@@ -66,7 +66,7 @@ python3 -m http.server 8000
 ```
 index.html   结构
 style.css    样式
-model.js     config 常量 + 形状/瓦片/字节推导（无 DOM，可单独跑）
+model.js     config 常量 + 形状/分块/字节推导（无 DOM，可单独跑）
 app.js       渲染与交互
 ```
 

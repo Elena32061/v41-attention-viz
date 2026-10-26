@@ -11,7 +11,7 @@
 <header>
   <h1>V4.1-Flash Attention：维度与各步的矩阵计算</h1>
   <p class="sub">
-    拖动 <b>M</b> 看瓦片和 wave 怎么变；切换 <b>并行方式</b> 看每张卡实际拿到多大的矩阵；
+    拖动 <b>M</b> 看分块和轮数怎么变；切换 <b>并行方式</b> 看每张卡实际拿到多大的矩阵；
     点数据流里任意一步，下面显示它的矩阵乘法。
     所有数字都是 config 维度 + 形状算术，<b>不含实测时间</b>。
   </p>
@@ -67,7 +67,7 @@
   </section>
 
   <section class="panel">
-    <h2>C　瓦片与 SM 占用</h2>
+    <h2>C　分块与 SM 占用</h2>
     <div id="tileHead" class="step-title"></div>
     <div id="tiles"></div>
     <div id="smHead" class="step-title"></div>
@@ -113,11 +113,11 @@
     <div>
       <h3>这里没有的东西</h3>
       <ul>
-        <li>没有任何实测时间、吞吐或 TPOT。瓦片数和 wave 数是理想排布的算术结果，
-            不含 L2、尾效应、graph padding 和 kernel 本身的瓦片形状差异。</li>
-        <li>O_A 实际 kernel 的瓦片不是 128×128，这里按统一口径算，只用于比较量级。</li>
+        <li>没有任何实测时间、吞吐或 TPOT。块数和轮数是理想排布的算术结果，
+            不含 L2、尾效应、graph padding 和 kernel 本身的 tile 形状差异。</li>
+        <li>O_A 实际 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。</li>
         <li>只画 attention。MoE、mHC、shared expert、Engram 表都没有画。</li>
-        <li>wave 数假设每个瓦片代价相同，实际不是 —— K 不同的投影每块的活差很多。</li>
+        <li>轮数假设每个块代价相同，实际不是 —— K 不同的投影每块的活差很多。</li>
       </ul>
     </div>
   </div>

@@ -33,7 +33,7 @@ export const CFG = Object.freeze({
 export const KV_LATENT = CFG.num_key_value_heads * CFG.head_dim;   // 512
 export const QKV_A_OUT = CFG.q_lora_rank + KV_LATENT;              // 1792
 
-export const TILE = 128;    // 输出瓦片边长（128x128）
+export const TILE = 128;    // 输出分块边长，即一个 tile 的边长
 export const SMS = 152;     // GB200 单卡 SM 数
 
 // 一次 FP8 block-scaled GEMM 的 scale 开销：沿 K 每 32 个元素一个 UE8M0。
@@ -89,13 +89,13 @@ export function projections(M, tp) {
       expr: `[M, ${(CFG.o_lora_rank * CFG.o_groups) / tp}] × ` +
             `[${(CFG.o_lora_rank * CFG.o_groups) / tp}, ${CFG.hidden_size}] → [M, ${CFG.hidden_size}]`,
       why: `全局 K = ${CFG.o_groups}×${CFG.o_lora_rank} = ${CFG.o_lora_rank * CFG.o_groups}，` +
-           `按行切（row-parallel），切的是 K 不是 N，所以瓦片列数不随 TP 变，` +
+           `按行切（row-parallel），切的是 K 不是 N，所以块的列数不随 TP 变，` +
            `但每卡算完要 all-reduce。`,
     },
   ];
 }
 
-/** 瓦片与 wave：输出切成 TILE×TILE，一块派一个 SM。O_A 按分组分别切。 */
+/** 分块与轮数（wave）：输出切成 TILE×TILE，一块派一个 SM。O_A 按分组分别切。 */
 export function tiling(p) {
   const rows = Math.ceil(p.M / TILE);
   const colsPerGroup = Math.ceil((p.perGroupN ?? p.N) / TILE);

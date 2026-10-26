@@ -162,7 +162,7 @@ function renderMatrix() {
     rows.map(([a, b, d]) => `<tr><td>${a}</td><td>${b}</td><td style="text-align:left;color:var(--grey)">${d}</td></tr>`).join('');
 }
 
-/* ------------------------------------------------------- C: 瓦片网格与 SM 占用 */
+/* ------------------------------------------------------- C: 分块网格与 SM 占用 */
 function renderTiles() {
   const p = projections(state.M, state.tp).find((q) => q.id === state.sel);
   const t = tiling(p);
