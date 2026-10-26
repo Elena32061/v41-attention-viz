@@ -46,6 +46,7 @@ function renderOverview() {
   const head = `<tr><th></th>${FWS.flatMap((f) => [`<th>${f}<br><span style="font-weight:400">rank 0</span></th>`, `<th>${f}<br><span style="font-weight:400">rank 4</span></th>`]).join('')}</tr>`;
   $('overview').innerHTML = head + rows.map(([n, fn]) =>
     `<tr><td>${n}</td>${FWS.flatMap((f) => [`<td>${fn(r0(f), f)}</td>`, `<td>${fn(r4(f), f)}</td>`]).join('')}</tr>`).join('');
+  $('overview').innerHTML += `<tr><td>对齐配置后的正常计时 TPOT（profiler 关、两侧 overlap 开、DI 新配置，10-25/26）</td><td colspan="2">8.024 ms</td><td colspan="2">8.759 ms</td></tr>`;
   const sg = r0('SGLang'), di = r0('DeepInfer');
   $('overviewNote').innerHTML =
     `<b>每步跑的 kernel 集合都一样。</b>SGLang 100 步集合相同，但顺序每步都不同 —— 它多流并发，不同 stream 上 kernel 的启动先后每步会变；` +
