@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dots3 Attention 结构与矩阵计算（2D 精确版）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>dots3 Attention：维度与各步的矩阵计算</h1>
+  <p class="sub">
+    和 <a href="2d.html">V4.1-Flash 的同款页面</a> 一样：拖动 <b>M</b> 看分块和轮数怎么变；
+    切换 <b>并行方式</b> 看每张卡实际拿到多大的矩阵；切换 <b>层类型</b> 看 full 层和 SWA 层的差别；
+    点数据流里任意一步，下面显示它的矩阵乘法。
+    所有数字都是 config 维度 + 形状算术，<b>不含实测时间</b>。画的是 decode 的吸收（absorbed MLA）路径。
+  </p>
+</header>
+
+<section class="controls">
+  <div class="ctrl">
+    <label for="m">每卡 query 行数 M</label>
+    <input type="range" id="m" min="64" max="2432" step="64" value="896">
+    <output id="mOut"></output>
+    <div class="hint" id="mHint"></div>
+  </div>
+  <div class="ctrl">
+    <label for="tp">Attention 并行方式</label>
+    <select id="tp">
+      <option value="1" selected>DP —— 本卡持有全部头</option>
+      <option value="2">TP2</option>
+      <option value="4">TP4</option>
+      <option value="8">TP8</option>
+    </select>
+    <div class="hint" id="tpHint"></div>
+  </div>
+  <div class="ctrl">
+    <label for="layer">层类型</label>
+    <select id="layer">
+      <option value="full" selected>full_attention —— 13 层，128 头 + indexer</option>
+      <option value="swa">sliding_attention —— 33 层，64 头，窗口 512</option>
+    </select>
+    <div class="hint" id="layerHint"></div>
+  </div>
+  <div class="ctrl">
+    <label for="ctx">上下文长度</label>
+    <input type="range" id="ctx" min="10" max="18" step="1" value="14">
+    <output id="ctxOut"></output>
+    <div class="hint" id="ctxHint"></div>
+  </div>
+  <div class="ctrl presets">
+    <label>跳到</label>
+    <div>
+      <button data-m="64">M64</button>
+      <button data-m="896">M896</button>
+      <button data-m="1024">M1024</button>
+      <button data-m="1536">M1536</button>
+    </div>
+    <div class="hint">M896 = 7×128，与 V4.1-Flash 页面的部署点行数对齐，便于并排看。</div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>A　一层 attention 的数据流<span class="tag">点任意一步</span></h2>
+  <div id="flow"></div>
+</section>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>B　选中这一步的矩阵计算</h2>
+    <div id="stepTitle" class="step-title"></div>
+    <div id="matrix"></div>
+    <div id="stepWhy" class="why"></div>
+    <table id="stepTable"></table>
+  </section>
+
+  <section class="panel">
+    <h2>C　分块与 SM 占用</h2>
+    <div id="tileHead" class="step-title"></div>
+    <div id="tiles"></div>
+    <div id="smHead" class="step-title"></div>
+    <div id="sms"></div>
+    <div id="tileNote" class="why"></div>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>D　这一层的所有矩阵乘法放在一起<span class="tag">按当前 M、并行方式和层类型</span></h2>
+  <table id="allTable"></table>
+  <div id="allNote" class="why"></div>
+</section>
+
+<section class="panel">
+  <h2>E　每行实际看多少 token<span class="tag">full 层：indexer 单级 top-k；SWA 层：窗口</span></h2>
+  <div id="funnel"></div>
+  <div id="funnelNote" class="why"></div>
+</section>
+
+<section class="panel">
+  <h2>F　和 V4.1-Flash 并排<span class="tag">同 M、同并行方式，只比 config 推出的形状</span></h2>
+  <table id="cmpTable"></table>
+  <div id="cmpNote" class="why"></div>
+</section>
+
+<footer>
+  <h2>来源与限定</h2>
+  <div class="cols">
+    <div>
+      <h3>维度来源</h3>
+      <p>
+        <code>model_dots3.js</code> 里 <code>CFG</code> 的每一项都抄自 dots3 checkpoint 的
+        <code>config.json</code>，字段名原样保留。
+        <code>QKV_A 1728 = 1024 + 512 + 64 + 128</code>（gate 列 = 本卡头数，headwise，对齐到 8）、
+        <code>Q_B 24576 = 128×(128+64)</code>、<code>W_KC/W_VC 每头 128×512 / 512×128</code>、
+        <code>O 的 K = 128×128</code> 这些换算，以及哪一维被 TP 切、decode 为什么不跑 kv_b 的 GEMM，
+        来自实现源码 <code>dots3_common/modeling.py</code>。
+      </p>
+      <h3>稀疏方式</h3>
+      <p>
+        full 层用 DSA indexer（<code>index_n_heads=64</code>、<code>index_head_dim=128</code>）
+        对<b>整段上下文</b>打分，选 <code>index_topk=2048</code> 个 token；<b>没有</b> V4.1 的
+        候选块那一级，所以 indexer 的打分量随上下文线性增长、没有封顶。
+        SWA 层只看最近 <code>sliding_window_size − 1 = 511</code> 个 token，不用 indexer。
+      </p>
+    </div>
+    <div>
+      <h3>这里没有的东西</h3>
+      <ul>
+        <li>没有任何实测时间、吞吐或 TPOT。块数和轮数是理想排布的算术结果，
+            不含 L2、尾效应、graph padding 和 kernel 本身的 tile 形状差异。</li>
+        <li>W_KC / W_VC 实际 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。</li>
+        <li>只画 decode 的吸收路径。prefill 走展开的 MHA（kv_b 作为 GEMM 跑在上下文上），没有画。</li>
+        <li>只画 attention。MoE（256 选 8 + 1 共享）、dense 第 0 层、gate 的逐元素乘都没有画。</li>
+        <li>checkpoint 是 BF16，没有 quantization_config；如果部署时转 FP8，权重字节减半，形状不变。</li>
+        <li>轮数假设每个块代价相同，实际不是 —— K 不同的投影每块的活差很多。</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="app_dots3.js"></script>
+</body>
+</html>

@@ -10,7 +10,13 @@
 - **`2d.html` —— 2D 精确版。** 带完整数表：四个投影的逐项维度、字节数、
   运算强度，以及稀疏两级漏斗。要看准确数字看这个。
 
-两页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
+- **`dots3.html` —— dots3 的 2D 精确版。** 同一套面板、同一套分块口径，数据来自 dots3 的
+  `config.json`（`model_dots3.js`），多一个 full / SWA 层类型开关，多一栏和 V4.1-Flash 并排。
+  画的是 decode 的吸收（absorbed MLA）路径：QKV_A → Q_B → W_KC → core attention → W_VC → O。
+  URL 多一个 `layer=full|swa`，`sel` 可取 `QKV_A / Q_B / IDX_Q / W_KC / W_VC / O`。
+  校验：`node check_dots3.mjs`。
+
+三页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
 
 ## 本地打开
 
