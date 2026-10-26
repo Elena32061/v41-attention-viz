@@ -93,3 +93,6 @@ footer .cols { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit,
 footer p, footer li { line-height: 1.65; }
 footer ul { padding-left: 17px; margin: 4px 0; }
 footer h3 { color: var(--dark); }
+
+/* 两页互相跳转的链接 */
+header .sub a { color: var(--act-edge); }

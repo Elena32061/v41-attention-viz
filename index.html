@@ -3,126 +3,110 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>V4.1-Flash Attention 结构与矩阵计算</title>
+<title>V4.1-Flash Attention 3D</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="scene.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
 </head>
-<body>
+<body class="is3d">
 
 <header>
-  <h1>V4.1-Flash Attention：维度与各步的矩阵计算</h1>
+  <h1>V4.1-Flash Attention：把一次 GEMM 当成一个体积来看</h1>
   <p class="sub">
-    拖动 <b>M</b> 看分块和轮数怎么变；切换 <b>并行方式</b> 看每张卡实际拿到多大的矩阵；
-    点数据流里任意一步，下面显示它的矩阵乘法。
-    所有数字都是 config 维度 + 形状算术，<b>不含实测时间</b>。
+    1 个格子 = 一个 <b>128×128</b> 的输出块，<b>往里的深度就是 K</b>。
+    所以每个块要做多少乘加，直接看它有多深。
+    亮起来的那一轮是正在被 152 个 SM 同时算的块。
+    <a href="2d.html">→ 2D 精确版（带完整数表）</a>
   </p>
 </header>
 
-<section class="controls">
-  <div class="ctrl">
-    <label for="m">每卡 query 行数 M</label>
-    <input type="range" id="m" min="64" max="2432" step="64" value="896">
-    <output id="mOut"></output>
-    <div class="hint" id="mHint"></div>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="labels"></div>
+
+  <div id="readout" class="glass">
+    <div class="ro-name" id="roName">QKV_A</div>
+    <div class="ro-expr" id="roExpr"></div>
+    <dl id="roStats"></dl>
   </div>
-  <div class="ctrl">
-    <label for="tp">Attention 并行方式</label>
-    <select id="tp">
-      <option value="1" selected>DP —— 本卡持有全部 64 个头</option>
-      <option value="2">TP2 —— 32 个头</option>
-      <option value="4">TP4 —— 16 个头</option>
-      <option value="8">TP8 —— 8 个头</option>
-    </select>
-    <div class="hint" id="tpHint"></div>
-  </div>
-  <div class="ctrl">
-    <label for="ctx">上下文长度</label>
-    <input type="range" id="ctx" min="10" max="20" step="1" value="14">
-    <output id="ctxOut"></output>
-    <div class="hint" id="ctxHint"></div>
-  </div>
-  <div class="ctrl presets">
-    <label>跳到</label>
-    <div>
-      <button data-m="64">M64</button>
-      <button data-m="896">M896</button>
-      <button data-m="1024">M1024</button>
-      <button data-m="1536">M1536</button>
+
+  <div id="hud" class="glass">
+    <div class="hud-row">
+      <span class="k">投影</span>
+      <div class="seg" id="segProj"></div>
     </div>
-    <div class="hint">M896 = 7×128，是目前组件模型用的部署点行数。</div>
+    <div class="hud-row">
+      <span class="k">M</span>
+      <input type="range" id="m" min="64" max="2432" step="64" value="896">
+      <b id="mOut">896</b>
+      <span class="u" id="mRb"></span>
+    </div>
+    <div class="hud-row">
+      <span class="k">并行</span>
+      <div class="seg" id="segTp"></div>
+    </div>
+    <div class="hud-row">
+      <span class="k">动画</span>
+      <button id="play" class="prim">暂停</button>
+      <input type="range" id="speed" min="20" max="260" step="10" value="90">
+      <span class="u">速度</span>
+      <button id="overview">全览</button>
+      <button id="reset">复位视角</button>
+    </div>
   </div>
-</section>
 
-<section class="panel">
-  <h2>A　一层 attention 的数据流<span class="tag">点任意一步</span></h2>
-  <div id="flow"></div>
-</section>
+  <div id="legend" class="glass">
+    <span><i style="background:#f4a23b"></i>正在算（本轮）</span>
+    <span><i style="background:#2f6fae"></i>已算完</span>
+    <span><i style="background:#ccd6de"></i>还没轮到</span>
+    <span><i style="background:#e05a5a"></i>空转的 SM</span>
+  </div>
 
-<div class="two-col">
-  <section class="panel">
-    <h2>B　选中这一步的矩阵计算</h2>
-    <div id="stepTitle" class="step-title"></div>
-    <div id="matrix"></div>
-    <div id="stepWhy" class="why"></div>
-    <table id="stepTable"></table>
-  </section>
-
-  <section class="panel">
-    <h2>C　分块与 SM 占用</h2>
-    <div id="tileHead" class="step-title"></div>
-    <div id="tiles"></div>
-    <div id="smHead" class="step-title"></div>
-    <div id="sms"></div>
-    <div id="tileNote" class="why"></div>
-  </section>
+  <div id="wavebar" class="glass"><div id="waveText"></div><div id="waveTrack"><div id="waveFill"></div></div></div>
+  <div id="hint">拖动旋转 · 滚轮缩放 · 点任意一个体积切换</div>
 </div>
 
 <section class="panel">
-  <h2>D　四个投影放在一起<span class="tag">按当前 M 和并行方式</span></h2>
-  <table id="allTable"></table>
-  <div id="allNote" class="why"></div>
-</section>
-
-<section class="panel">
-  <h2>E　稀疏注意力的两级漏斗<span class="tag">sparse_stage = 2</span></h2>
-  <div id="funnel"></div>
-  <div id="funnelNote" class="why"></div>
-</section>
-
-<footer>
-  <h2>来源与限定</h2>
-  <div class="cols">
+  <h2>这个 3D 在说什么</h2>
+  <div class="cols3">
     <div>
-      <h3>维度来源</h3>
+      <h3>深度 = K = 每个块的工作量</h3>
       <p>
-        <code>model.js</code> 里 <code>CFG</code> 的每一项都抄自 checkpoint 的
-        <code>config.json → text_config</code>，字段名原样保留。
-        <code>1792 = 1280 + 512</code>、<code>32768 = 64×512</code>、
-        <code>O_A 每组 4096 = 64×512÷8</code>、<code>O_B 的 K = 8×1024</code>
-        这些换算，以及哪一维被 TP 切，来自实现源码。
-      </p>
-      <h3>稀疏两级</h3>
-      <p>
-        <code>sparse_stage=2</code>。第一级按
-        <code>candidate_topk_blocks=2048</code> × <code>candidate_block_size=8</code>
-        取候选；第二级 MQA indexer（<code>index_n_heads=32</code>、
-        <code>index_head_dim=128</code>）从候选里选
-        <code>index_topk=512</code> 个 <b>token</b>（源码里是
-        <code>self.topk_tokens = cfg.index_topk</code>，单位是 token 不是 block）。
+        四个体积的高都一样（都是 M 行），但深度差很多。
+        <b>QKV_A 深 40 格</b>（K=5120），<b>Q_B 只深 10 格</b>（K=1280）。
+        Q_B 的块数是 QKV_A 的 18 倍，可是每个块浅得多 ——
+        所以<b>轮数不能直接当时间读</b>，这是这张图最该带走的一点。
       </p>
     </div>
     <div>
-      <h3>这里没有的东西</h3>
-      <ul>
-        <li>没有任何实测时间、吞吐或 TPOT。块数和轮数是理想排布的算术结果，
-            不含 L2、尾效应、graph padding 和 kernel 本身的 tile 形状差异。</li>
-        <li>O_A 实际 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。</li>
-        <li>只画 attention。MoE、mHC、shared expert、Engram 表都没有画。</li>
-        <li>轮数假设每个块代价相同，实际不是 —— K 不同的投影每块的活差很多。</li>
-      </ul>
+      <h3>最后一轮的空档</h3>
+      <p>
+        每一轮最多 152 个块同时算。块数很少整除 152，最后一轮就空着一截。
+        把 M 从 896 推到 1408 看 QKV_A：块数 98 → 154，刚过 152，
+        第二轮只有 2 个块，<b>150 个 SM 整轮空转</b>。
+        红色格子就是这些空转的 SM。
+      </p>
+    </div>
+    <div>
+      <h3>切 TP 会发生什么</h3>
+      <p>
+        切到 TP4，Q_B 和 O_A 的宽度缩成四分之一，O_B 缩的是<b>深度</b>（它切 K 不切 N），
+        QKV_A 完全不变（replicated）。每张卡的块少了，
+        但四张卡要各跑一遍，而且 O_B 之后还要 all-reduce —— 这个开销图里没有画。
+      </p>
     </div>
   </div>
-</footer>
+  <p class="why">
+    几何全部来自 checkpoint config + 形状算术：<code>块数 = ⌈N/128⌉ × ⌈M/128⌉</code>，
+    <code>轮数 = ⌈块数 / 152⌉</code>，深度 = <code>K/128</code>。
+    <b>没有任何实测时间</b>；动画的节奏是固定速度，不代表真实 kernel 耗时。
+    O_A 真实 kernel 的 tile 不是 128×128，这里按统一口径算，只用于比较量级。
+    完整来源和限定见 <a href="2d.html">2D 版</a>和 README。
+  </p>
+</section>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="scene.js"></script>
 </body>
 </html>
