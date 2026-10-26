@@ -11,7 +11,7 @@
 <header>
   <h1>dots3 Attention：维度与各步的矩阵计算</h1>
   <p class="sub">
-    和 <a href="2d.html">V4.1-Flash 的同款页面</a> 一样：拖动 <b>M</b> 看分块和轮数怎么变；
+    和 <a href="2d.html">V4.1-Flash 的同款页面</a>（另有 <a href="kernels.html">实测 kernel 清单</a>）一样：拖动 <b>M</b> 看分块和轮数怎么变；
     切换 <b>并行方式</b> 看每张卡实际拿到多大的矩阵；切换 <b>层类型</b> 看 full 层和 SWA 层的差别；
     点数据流里任意一步，下面显示它的矩阵乘法。
     所有数字都是 config 维度 + 形状算术，<b>不含实测时间</b>。画的是 decode 的吸收（absorbed MLA）路径。

@@ -16,7 +16,14 @@
   URL 多一个 `layer=full|swa`，`sel` 可取 `QKV_A / Q_B / IDX_Q / W_KC / W_VC / O`。
   校验：`node check_dots3.mjs`。
 
-三页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
+- **`kernels.html` —— 8 卡 B64 实测 kernel 清单。** 不是形状算术，是两份 nsys trace
+  （SGLang `e2_sg8_b64_extension_01`、DeepInfer `e2_di8_b64_v3_20261022t113200z`，同模型同权重、
+  16K/512、全局 batch 64）各切成 100 个 decode step 后的逐 kernel 统计：每步概况、一步的执行顺序条、
+  按功能汇总、逐 kernel 表。数据在 `kernels_b64_8card.json`，由
+  `outputs/sg_di_8card_kernel_compare_20261025/stage/build_kernels_json.py` 生成。
+  URL：`?fw=both|SGLang|DeepInfer&sort=ms|count|us|bucket&hide=<bucket,...>`。
+
+四页都是纯静态，没有构建步骤。3D 页把 three.js 放在 `vendor/` 里，运行时不连 CDN。
 
 ## 本地打开
 

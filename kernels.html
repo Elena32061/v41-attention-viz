@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8 卡 B64 decode：一步里有哪些 kernel（SGLang vs DeepInfer）</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 10px; }
+  .card { border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; background: #fbfcfd; }
+  .card .k { font-size: 11px; color: var(--grey); }
+  .card .v { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card .s { font-size: 11px; color: var(--grey); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--grey); margin: 6px 0 8px; }
+  .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; background: var(--c); vertical-align: -1px; }
+  .strip svg { height: 64px; }
+  .fw-title { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+  .fw-title .mono { font-family: ui-monospace, Menlo, monospace; font-weight: 400; color: var(--grey); font-size: 11.5px; }
+  #overview { table-layout: fixed; }
+  #overview th:first-child, #overview td:first-child { width: 22%; }
+  #overview td { white-space: normal; word-break: break-word; font-size: 12px; }
+  .scroll table { table-layout: fixed; }
+  td.name { text-align: left; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scroll th:first-child, .scroll td:first-child { width: 52%; }
+  th.sortable { cursor: pointer; }
+  th.sortable.on { color: var(--act-edge); }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+  .filters button { font: inherit; font-size: 11.5px; padding: 3px 9px; border: 1px solid var(--line); background: #fff; border-radius: 7px; cursor: pointer; color: var(--dark); }
+  .filters button.on { border-color: var(--act-edge); color: var(--act-edge); background: #f2f8fd; }
+  .scroll { max-height: 560px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .scroll table { margin: 0; }
+  .scroll th { position: sticky; top: 0; background: #fff; z-index: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>8 卡 B64 decode：一步里有哪些 kernel，每步是否一样</h1>
+  <p class="sub">
+    两份 nsys trace 各切成 100 个 decode step（output 199–299），逐 kernel 统计。
+    同一模型（V4.1-Flash）、同一权重、16K 输入 / 512 输出、全局 batch 64、2 节点 × 4×GB200。
+    这页是<b>实测记录</b>，不是形状算术；两份 trace 都带采集完整性警告，只看相对量级。
+    <a href="2d.html">← V4.1 形状页</a>　<a href="dots3.html">dots3 形状页</a>
+  </p>
+</header>
+
+<section class="controls">
+  <div class="ctrl">
+    <label for="fw">看哪一边</label>
+    <select id="fw">
+      <option value="both" selected>两边并排</option>
+      <option value="SGLang">只看 SGLang</option>
+      <option value="DeepInfer">只看 DeepInfer</option>
+    </select>
+    <div class="hint">并排时两张表各自独立滚动。</div>
+  </div>
+  <div class="ctrl">
+    <label for="sort">表格排序</label>
+    <select id="sort">
+      <option value="ms" selected>按每步累计时间</option>
+      <option value="count">按每步次数</option>
+      <option value="us">按单次平均时长</option>
+      <option value="bucket">按功能分组</option>
+    </select>
+    <div class="hint" id="sortHint"></div>
+  </div>
+  <div class="ctrl">
+    <label>功能筛选</label>
+    <div class="filters" id="filters"></div>
+    <div class="hint">分组沿用 analysis_functional.json 的逐名判定。</div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>A　每步概况<span class="tag">rank 0（node_0）与 rank 4（node_1）各切 100 步</span></h2>
+  <table id="overview"></table>
+  <div class="why" id="overviewNote"></div>
+</section>
+
+<section class="panel">
+  <h2>B　一步的执行顺序<span class="tag">取出现次数最多的那种步；每个格子一个 kernel，按功能上色</span></h2>
+  <div class="legend" id="legend"></div>
+  <div id="strips"></div>
+  <div class="why" id="stripNote"></div>
+</section>
+
+<section class="panel">
+  <h2>C　按功能汇总<span class="tag">每步累计 kernel 时长与次数</span></h2>
+  <div id="buckets" class="two-col" style="max-width:none"></div>
+</section>
+
+<section class="panel">
+  <h2>D　逐 kernel 清单<span class="tag">rank 0，100 步平均</span></h2>
+  <div id="tables" class="two-col" style="max-width:none"></div>
+</section>
+
+<footer>
+  <h2>来源与限定</h2>
+  <div class="cols">
+    <div>
+      <h3>数据来源</h3>
+      <p id="prov"></p>
+      <p>切分脚本 <code>stage/di_step_ops.py</code> → <code>build_kernels_json.py</code>，
+        产物 <code>kernels_b64_8card.json</code>。kernel 名去掉了模板参数，所以同名不同 tile 的变体会合并。</p>
+    </div>
+    <div>
+      <h3>限定</h3>
+      <ul id="limits"></ul>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="kernels.js"></script>
+</body>
+</html>
